@@ -35,10 +35,13 @@ class ViewController: UIViewController {
         request.allHTTPHeaderFields = headers
         request.httpBody = postData as Data
 
-        let session = URLSession.shared
-
-        let dataTask = session.dataTask(with: request) { data, response, error in
-            if let data {
+        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+            if let _ = error { return }
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                return
+            }
+            if let mimeType = httpResponse.mimeType, mimeType == "application/json", let data {
                 if let sample = try? JSONDecoder().decode(NotionSample.self, from: data) {
                     DispatchQueue.main.async {
                         self.label.text = sample.results.description
@@ -47,6 +50,6 @@ class ViewController: UIViewController {
             }
         }
 
-        dataTask.resume()
+        task.resume()
     }
 }
