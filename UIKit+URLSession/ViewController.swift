@@ -9,21 +9,34 @@ import UIKit
 
 import RxCocoa
 import RxSwift
+import SnapKit
 
-class ViewController: UIViewController {
-    private let viewModel = ViewModel()
+class ViewController: UIViewController, ViewModelBindableType {
 
-    @IBOutlet weak var label: UILabel!
-    private let disposeBag = DisposeBag()
+    var viewModel: ViewModel!
+
+    private let label = {
+        let text = UILabel()
+        text.text = "안녕하세요"
+        return text
+    }()
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .blue
-        label.text = "안녕하세요"
-        viewModel.getNotionAPI()
+        view.addSubview(label)
+        label.snp.makeConstraints {
+            $0.center.equalToSuperview()
+        }
+    }
+
+    func bind() {
+        let input = ViewModelType.Input(viewWillAppear: rx.viewWillAppear)
+        let output = viewModel.transform(input: input)
+        output.fetchedString
             .observe(on: MainScheduler.asyncInstance)
             .asDriver(onErrorJustReturn: "")
             .drive(label.rx.text)
-            .disposed(by: disposeBag)
+            .disposed(by: viewModel.disposeBag)
     }
 }
