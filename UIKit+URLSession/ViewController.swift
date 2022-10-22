@@ -6,6 +6,8 @@
 //
 
 import UIKit
+
+import RxCocoa
 import RxSwift
 
 class ViewController: UIViewController {
@@ -20,9 +22,7 @@ class ViewController: UIViewController {
         label.text = "안녕하세요"
         getNotionAPI()
             .observe(on: MainScheduler.asyncInstance)
-            .subscribe(onNext: { [weak self] str in
-                self?.label.text = str
-            })
+            .bind(to: label.rx.text)
             .disposed(by: disposeBag)
     }
 
