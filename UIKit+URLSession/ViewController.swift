@@ -6,20 +6,35 @@
 //
 
 import UIKit
+import RxSwift
 
 class ViewController: UIViewController {
 
     @IBOutlet weak var label: UILabel!
     private var isHello = true
+    private let disposeBag = DisposeBag()
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .blue
         label.text = "안녕하세요"
-        getNotionAPI()
+        Task {
+            try await getNotionAPI()
+                .observe(on: MainScheduler.asyncInstance)
+                .subscribe(onNext: { [weak self] str in
+                    self?.label.text = str
+                })
+                .disposed(by: disposeBag)
+        }
     }
 
-    func getNotionAPI() {
+    enum FetchError: Error {
+        case badStatusCode
+        case badMimeType
+        case badDecode
+    }
+
+    func getNotionAPI() async throws -> Observable<String?> {
         let headers = [
             "accept": "application/json",
             "Notion-Version": "2022-06-28",
@@ -35,21 +50,18 @@ class ViewController: UIViewController {
         request.allHTTPHeaderFields = headers
         request.httpBody = postData as Data
 
-        let task = URLSession.shared.dataTask(with: request) { data, response, error in
-            if let _ = error { return }
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode) else {
-                return
-            }
-            if let mimeType = httpResponse.mimeType, mimeType == "application/json", let data {
-                if let sample = try? JSONDecoder().decode(NotionSample.self, from: data) {
-                    DispatchQueue.main.async {
-                        self.label.text = sample.results.description
-                    }
-                }
-            }
-        }
+        let (data, response) = try await URLSession.shared.data(for: request)
 
-        task.resume()
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw FetchError.badStatusCode
+        }
+        guard let mimeType = httpResponse.mimeType, mimeType == "application/json" else {
+            throw FetchError.badMimeType
+        }
+        guard let sample = try? JSONDecoder().decode(NotionSample.self, from: data) else {
+            throw FetchError.badDecode
+        }
+        return Observable.just(sample.results.description)
     }
 }
