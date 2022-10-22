@@ -18,50 +18,58 @@ class ViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .blue
         label.text = "안녕하세요"
-        Task {
-            try await getNotionAPI()
-                .observe(on: MainScheduler.asyncInstance)
-                .subscribe(onNext: { [weak self] str in
-                    self?.label.text = str
-                })
-                .disposed(by: disposeBag)
-        }
+        getNotionAPI()
+            .observe(on: MainScheduler.asyncInstance)
+            .subscribe(onNext: { [weak self] str in
+                self?.label.text = str
+            })
+            .disposed(by: disposeBag)
     }
 
-    enum FetchError: Error {
-        case badStatusCode
-        case badMimeType
-        case badDecode
-    }
+    private func getNotionAPI() -> Observable<String?> {
+        return Observable.create { emitter in
+            let headers = [
+                "accept": "application/json",
+                "Notion-Version": "2022-06-28",
+                "content-type": "application/json",
+                "authorization": "Bearer secret_lJJ6o18yolookxqAqlgKwUC3VFQMYlEige3enTaPIK7"
+            ]
 
-    func getNotionAPI() async throws -> Observable<String?> {
-        let headers = [
-            "accept": "application/json",
-            "Notion-Version": "2022-06-28",
-            "content-type": "application/json",
-            "authorization": "Bearer secret_lJJ6o18yolookxqAqlgKwUC3VFQMYlEige3enTaPIK7"
-        ]
+            let parameters = ["page_size": 100] as [String : Any]
+            let postData = try! JSONSerialization.data(withJSONObject: parameters, options: [])
+            var request = URLRequest(url: URL(string: "https://api.notion.com/v1/databases/a255741aa68f43c89982561c09a1e3fe/query")!, cachePolicy: .useProtocolCachePolicy,
+                                     timeoutInterval: 10.0)
+            request.httpMethod = "POST"
+            request.allHTTPHeaderFields = headers
+            request.httpBody = postData as Data
 
-        let parameters = ["page_size": 100] as [String : Any]
-        let postData = try! JSONSerialization.data(withJSONObject: parameters, options: [])
-        var request = URLRequest(url: URL(string: "https://api.notion.com/v1/databases/a255741aa68f43c89982561c09a1e3fe/query")!, cachePolicy: .useProtocolCachePolicy,
-                                 timeoutInterval: 10.0)
-        request.httpMethod = "POST"
-        request.allHTTPHeaderFields = headers
-        request.httpBody = postData as Data
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
-            throw FetchError.badStatusCode
+            let task = URLSession.shared.dataTask(with: request) { data, response, error in
+                if let error {
+                    emitter.onError(error)
+                    print(error.localizedDescription)
+                    return
+                }
+                guard let httpResponse = response as? HTTPURLResponse,
+                      (200...299).contains(httpResponse.statusCode) else {
+                    var response = response as? HTTPURLResponse
+                    print("Response Problem")
+                    return
+                }
+                guard let mimeType = httpResponse.mimeType, mimeType == "application/json", let data else {
+                    print("mimeType Problem")
+                    return
+                }
+                guard let sample = try? JSONDecoder().decode(NotionSample.self, from: data) else {
+                    print("sample Problem")
+                    return
+                }
+                emitter.onNext(sample.results.description)
+                emitter.onCompleted()
+            }
+            task.resume()
+            return Disposables.create()
+//                task.cancel()
+//            }
         }
-        guard let mimeType = httpResponse.mimeType, mimeType == "application/json" else {
-            throw FetchError.badMimeType
-        }
-        guard let sample = try? JSONDecoder().decode(NotionSample.self, from: data) else {
-            throw FetchError.badDecode
-        }
-        return Observable.just(sample.results.description)
     }
 }
