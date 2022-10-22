@@ -22,7 +22,8 @@ class ViewController: UIViewController {
         label.text = "안녕하세요"
         getNotionAPI()
             .observe(on: MainScheduler.asyncInstance)
-            .bind(to: label.rx.text)
+            .asDriver(onErrorJustReturn: "")
+            .drive(label.rx.text)
             .disposed(by: disposeBag)
     }
 
