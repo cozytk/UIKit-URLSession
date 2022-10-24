@@ -24,7 +24,9 @@ final class ViewModel: ViewModelType {
 
     func transform(input: Input) -> Output {
         let fetchedString = input.viewWillAppear
-            .withLatestFrom(self.getNotionAPI())
+            .flatMap { _ in
+                self.getNotionAPI()
+            }
 
         return Output(fetchedString: fetchedString)
     }

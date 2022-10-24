@@ -34,7 +34,6 @@ class ViewController: UIViewController, ViewModelBindableType {
         let input = ViewModelType.Input(viewWillAppear: rx.viewWillAppear)
         let output = viewModel.transform(input: input)
         output.fetchedString
-            .observe(on: MainScheduler.asyncInstance)
             .asDriver(onErrorJustReturn: "")
             .drive(label.rx.text)
             .disposed(by: viewModel.disposeBag)
